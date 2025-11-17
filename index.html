@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Planificación de Disco</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .disk-visualization {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        }
+        .algorithm-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .log-entry {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .progress-segment {
+            position: relative;
+        }
+        .progress-segment::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background-color: #e5e7eb;
+        }
+        .progress-segment:last-child::after {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white rounded-xl shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-center">Simulador de Planificación de Disco</h1>
+            <p class="text-center text-blue-200 mt-2">Sistemas Operativos I - Proyecto Final</p>
+        </header>
+
+        <!-- Secciones 1 y 2: Algoritmos y Solicitudes -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Sección 1: Algoritmos -->
+            <section class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                    <i class="fas fa-algorithm mr-2 text-blue-500"></i>Algoritmo de Planificación
+                </h2>
+                
+                <div class="grid grid-cols-1 gap-3 mb-6">
+                    <div class="algorithm-card bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <input type="radio" id="fcfs" name="algorithm" value="FCFS" class="h-4 w-4 text-blue-600 focus:ring-blue-500" checked>
+                            <label for="fcfs" class="ml-3 font-medium text-gray-700">FCFS (First-Come, First-Served)</label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1 ml-7">Atiende las solicitudes en orden de llegada</p>
+                    </div>
+
+                    <div class="algorithm-card bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <input type="radio" id="sstf" name="algorithm" value="SSTF" class="h-4 w-4 text-blue-600 focus:ring-blue-500">
+                            <label for="sstf" class="ml-3 font-medium text-gray-700">SSTF (Shortest Seek Time First)</label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1 ml-7">Atiende la solicitud más cercana al cabezal actual</p>
+                    </div>
+
+                    <div class="algorithm-card bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <input type="radio" id="scan" name="algorithm" value="SCAN" class="h-4 w-4 text-blue-600 focus:ring-blue-500">
+                            <label for="scan" class="ml-3 font-medium text-gray-700">SCAN (Elevator Algorithm)</label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1 ml-7">El cabezal se mueve en una dirección atendiendo solicitudes</p>
+                    </div>
+
+                    <div class="algorithm-card bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <input type="radio" id="nstep" name="algorithm" value="NSTEP" class="h-4 w-4 text-blue-600 focus:ring-blue-500">
+                            <label for="nstep" class="ml-3 font-medium text-gray-700">SCAN de N Pasos</label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1 ml-7">Divide las solicitudes en grupos de tamaño N</p>
+                    </div>
+
+                    <div class="algorithm-card bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <input type="radio" id="cscan" name="algorithm" value="CSCAN" class="h-4 w-4 text-blue-600 focus:ring-blue-500">
+                            <label for="cscan" class="ml-3 font-medium text-gray-700">C-SCAN (Circular SCAN)</label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1 ml-7">Versión circular del algoritmo SCAN</p>
+                    </div>
+
+                    <div class="algorithm-card bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200">
+                        <div class="flex items-center">
+                            <input type="radio" id="eschenbach" name="algorithm" value="ESCHENBACH" class="h-4 w-4 text-blue-600 focus:ring-blue-500">
+                            <label for="eschenbach" class="ml-3 font-medium text-gray-700">Esquema Eschenbach</label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1 ml-7">Algoritmo de optimización de peticiones de disco</p>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 class="font-medium text-blue-800 mb-2">Descripción del Algoritmo Seleccionado</h3>
+                    <p id="algorithmDescription" class="text-sm text-blue-700">
+                        Seleccione un algoritmo para ver su descripción detallada...
+                    </p>
+                </div>
+            </section>
+
+            <!-- Sección 2: Solicitudes -->
+            <section class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                    <i class="fas fa-table mr-2 text-green-500"></i>Solicitudes de Disco
+                </h2>
+                
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <button id="generateRequests" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i>Generar Solicitudes
+                    </button>
+                    <button id="clearHistory" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                        <i class="fas fa-trash-alt mr-2"></i>Limpiar Historial
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div class="text-center">
+                        <p class="text-sm text-gray-500">Total Solicitudes</p>
+                        <p class="font-bold text-gray-800">30</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sm text-gray-500">Rondas</p>
+                        <p class="font-bold text-gray-800">3 (10 c/u)</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sm text-gray-500">Disco</p>
+                        <p class="font-bold text-gray-800">6 platos, 40 cilindros</p>
+                    </div>
+                </div>
+
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cara</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cilindro</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sector</th>
+                                </tr>
+                            </thead>
+                            <tbody id="requestsBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Las 30 solicitudes se generarán aquí dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Sección 3: Simulación -->
+        <section class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                <i class="fas fa-play-circle mr-2 text-purple-500"></i>Simulación
+            </h2>
+            
+            <!-- Controles de Simulación -->
+            <div class="flex flex-wrap items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                <button id="startSimulation" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <i class="fas fa-play mr-2"></i>Iniciar Simulación
+                </button>
+                <button id="pauseSimulation" disabled class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <i class="fas fa-pause mr-2"></i>Pausar Simulación
+                </button>
+                <button id="resetSimulation" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <i class="fas fa-redo mr-2"></i>Reiniciar Simulación
+                </button>
+                
+                <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-300">
+                    <label class="text-sm font-medium text-gray-700">Velocidad:</label>
+                    <input type="range" id="speedControl" min="1" max="10" value="5" class="w-24">
+                    <span id="speedValue" class="text-sm font-medium text-gray-700">Normal</span>
+                </div>
+                
+                <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-300">
+                    <span class="text-sm font-medium text-gray-700">Ronda Actual:</span>
+                    <span id="currentRound" class="font-bold text-blue-600">-</span>
+                </div>
+            </div>
+
+            <!-- Panel de Métricas en Tiempo Real -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                    <p class="text-2xl font-bold text-blue-700" id="totalTracks">0</p>
+                    <p class="text-sm text-blue-600">Pistas Recorridas</p>
+                </div>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                    <p class="text-2xl font-bold text-purple-700" id="directionChanges">0</p>
+                    <p class="text-sm text-purple-600">Cambios de Dirección</p>
+                </div>
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <p class="text-2xl font-bold text-green-700" id="requestsProcessed">0/30</p>
+                    <p class="text-sm text-green-600">Peticiones Atendidas</p>
+                </div>
+                <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-center">
+                    <p class="text-2xl font-bold text-indigo-700" id="currentCylinder">-</p>
+                    <p class="text-sm text-indigo-600">Cilindro Actual</p>
+                </div>
+            </div>
+
+            <!-- Barra de Progreso -->
+            <div class="mb-6">
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm font-medium text-gray-700">Progreso de la Simulación</span>
+                    <span id="progressPercentage" class="text-sm font-medium text-gray-700">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div id="progressFill" class="bg-blue-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-1 text-xs text-gray-500">
+                    <span>Ronda 1</span>
+                    <span>Ronda 2</span>
+                    <span>Ronda 3</span>
+                    <span>Completado</span>
+                </div>
+            </div>
+
+            <!-- Visualización Gráfica del Disco -->
+            <div class="disk-visualization rounded-lg p-6 mb-6 text-white text-center">
+                <h3 class="text-lg font-medium mb-4">Visualización del Disco</h3>
+                <div id="visualContent">
+                    <p class="mb-2">Representación de 40 cilindros (0-39) con cabezal móvil</p>
+                    <p>La visualización aparecerá aquí durante la simulación</p>
+                </div>
+            </div>
+
+            <!-- Log de Eventos -->
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="bg-gray-800 text-white px-4 py-2 font-medium">
+                    <i class="fas fa-terminal mr-2"></i>Log de Eventos
+                </div>
+                <div id="eventLog" class="bg-gray-900 text-green-400 font-mono text-sm p-4 h-48 overflow-y-auto">
+                    <div class="log-entry">>> Sistema listo. Seleccione un algoritmo y genere solicitudes para comenzar.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección 4: Resultados -->
+        <section class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                <i class="fas fa-chart-bar mr-2 text-orange-500"></i>Resultados de la Simulación
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Tabla de Resultados de Simulación Actual -->
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                        <h3 class="font-medium text-gray-800">Resultados de la Simulación Actual</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"># Solicitud</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cilindros Recorridos</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cambio de Dirección</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Los resultados de la simulación actual aparecerán aquí -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tabla de Historial de Simulaciones -->
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                        <h3 class="font-medium text-gray-800">Historial de Simulaciones</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Algoritmo</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cilindros</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cambios</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody" class="bg-white divide-y divide-gray-200">
+                                <!-- El historial de todas las simulaciones aparecerá aquí -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
