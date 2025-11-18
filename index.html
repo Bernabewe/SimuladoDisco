@@ -186,7 +186,7 @@
                 
                 <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-300">
                     <label class="text-sm font-medium text-gray-700">Velocidad:</label>
-                    <input type="range" id="speedControl" min="1" max="10" value="5" class="w-24">
+                    <input type="range" id="speedControl" min="1" max="5" value="3" class="w-24">
                     <span id="speedValue" class="text-sm font-medium text-gray-700">Normal</span>
                 </div>
                 
@@ -222,14 +222,14 @@
                     <span class="text-sm font-medium text-gray-700">Progreso de la Simulación</span>
                     <span id="progressPercentage" class="text-sm font-medium text-gray-700">0%</span>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-4">
+                <div class="w-full bg-gray-200 rounded-full h-4 relative">
                     <div id="progressFill" class="bg-blue-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between mt-1 text-xs text-gray-500">
-                    <span>Ronda 1</span>
-                    <span>Ronda 2</span>
-                    <span>Ronda 3</span>
-                    <span>Completado</span>
+                <div class="flex justify-between mt-1 text-xs text-gray-500" style="position: relative;">
+                    <span style="position: absolute; left: 0%;">Ronda 1</span>
+                    <span style="position: absolute; left: 16.67%; transform: translateX(-50%);">Ronda 2</span>
+                    <span style="position: absolute; left: 50%; transform: translateX(-50%);">Ronda 3</span>
+                    <span style="position: absolute; left: 100%; transform: translateX(-50%);">Completado</span>
                 </div>
             </div>
 

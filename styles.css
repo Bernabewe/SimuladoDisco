@@ -168,6 +168,16 @@ body {
     text-transform: uppercase;
 }
 
+.progress-labels-container {
+    position: relative;
+    height: 20px;
+}
+
+.progress-label {
+    position: absolute;
+    transform: translateX(-50%);
+}
+
 /* Sección de Simulación */
 .simulation-controls {
     display: flex;

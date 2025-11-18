@@ -1,6 +1,6 @@
-// script.js - Simulador de Planificación de Disco
+// script.js - simulador de planificacion de disco
 
-// Estado global de la aplicación
+// estado global de la aplicacion
 const state = {
     algorithms: {
         FCFS: 'First-Come, First-Served',
@@ -11,13 +11,14 @@ const state = {
         ESCHENBACH: 'Esquema Eschenbach'
     },
     currentAlgorithm: 'FCFS',
-    requests: [],
+    allRequests: [], // todas las solicitudes generadas
+    pendingRequests: [], // solicitudes pendientes de atender
     simulation: {
         isRunning: false,
         isPaused: false,
         currentRequestIndex: 0,
-        currentCylinder: 20, // Empezar en el cilindro 20 (medio)
-        direction: 1, // 1 = hacia cilindros mayores, -1 = hacia menores
+        currentCylinder: 20, // posicion inicial del cabezal
+        direction: 1, // direccion del movimiento
         totalTracks: 0,
         directionChanges: 0,
         speed: 5,
@@ -27,26 +28,26 @@ const state = {
     history: []
 };
 
-// Descripciones detalladas de los algoritmos
+// descripciones de los algoritmos para mostrar al usuario
 const algorithmDescriptions = {
-    FCFS: 'First-Come, First-Served: Atiende las solicitudes en el orden exacto en que fueron recibidas. Es el más simple pero puede ser ineficiente.',
-    SSTF: 'Shortest Seek Time First: Selecciona la solicitud más cercana a la posición actual del cabezal. Reduce el tiempo de búsqueda pero puede causar inanición.',
-    SCAN: 'Elevator Algorithm: El cabezal se mueve en una dirección atendiendo solicitudes hasta el final, luego cambia de dirección. Similar a un ascensor.',
+    FCFS: 'First-Come, First-Served: Atiende las solicitudes en el orden exacto en que fueron recibidas. Es el mas simple pero puede ser ineficiente.',
+    SSTF: 'Shortest Seek Time First: Selecciona la solicitud mas cercana a la posicion actual del cabezal. Reduce el tiempo de busqueda pero puede causar inanicion.',
+    SCAN: 'Elevator Algorithm: El cabezal se mueve en una direccion atendiendo solicitudes hasta el final, luego cambia de direccion. Similar a un ascensor.',
     NSTEP: 'SCAN de N Pasos: Divide las solicitudes en grupos de tamaño N y aplica SCAN a cada grupo. Mejora la equidad sobre SCAN simple.',
-    CSCAN: 'Circular SCAN: Versión circular de SCAN donde el cabezal solo se mueve en una dirección, volviendo al inicio después del final.',
-    ESCHENBACH: 'Esquema Eschenbach: Algoritmo de optimización que busca minimizar el tiempo total de acceso considerando múltiples factores.'
+    CSCAN: 'Circular SCAN: Version circular de SCAN donde el cabezal solo se mueve en una direccion, volviendo al inicio despues del final.',
+    ESCHENBACH: 'Esquema Eschenbach: Algoritmo de optimizacion que busca minimizar el tiempo total de acceso considerando multiples factores.'
 };
 
-// Inicialización
+// inicializacion de la aplicacion
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
     generateRequests();
     updateAlgorithmDescription();
 });
 
-// Configurar event listeners
+// configuracion de todos los event listeners
 function initializeEventListeners() {
-    // Listeners para algoritmos
+    // listeners para seleccion de algoritmo
     document.querySelectorAll('input[name="algorithm"]').forEach(radio => {
         radio.addEventListener('change', function() {
             state.currentAlgorithm = this.value;
@@ -54,45 +55,46 @@ function initializeEventListeners() {
         });
     });
 
-    // Listeners para botones
+    // listeners para los botones de control
     document.getElementById('generateRequests').addEventListener('click', generateRequests);
     document.getElementById('clearHistory').addEventListener('click', clearHistory);
     document.getElementById('startSimulation').addEventListener('click', startSimulation);
     document.getElementById('pauseSimulation').addEventListener('click', togglePause);
     document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
     
-    // Listener para control de velocidad
+    // listener para control de velocidad de simulacion
     document.getElementById('speedControl').addEventListener('input', function() {
         state.simulation.speed = parseInt(this.value);
         updateSpeedDisplay();
     });
 }
 
-// Actualizar descripción del algoritmo
+// actualiza la descripcion del algoritmo seleccionado
 function updateAlgorithmDescription() {
     const descriptionElement = document.getElementById('algorithmDescription');
     descriptionElement.textContent = algorithmDescriptions[state.currentAlgorithm];
 }
 
-// Generar solicitudes aleatorias
+// genera 30 solicitudes aleatorias con los rangos especificados
 function generateRequests() {
-    state.requests = [];
+    state.allRequests = [];
+    state.pendingRequests = [];
     const requestsBody = document.getElementById('requestsBody');
     requestsBody.innerHTML = '';
 
+    // generar 30 solicitudes aleatorias
     for (let i = 0; i < 30; i++) {
         const request = {
             id: i + 1,
-            cara: Math.floor(Math.random() * 10),      // 0-9
-            cilindro: Math.floor(Math.random() * 40),  // 0-39
-            sector: Math.floor(Math.random() * 16)     // 0-15
+            cara: Math.floor(Math.random() * 10),      // rango 0-9
+            cilindro: Math.floor(Math.random() * 40),  // rango 0-39
+            sector: Math.floor(Math.random() * 16)     // rango 0-15
         };
-        state.requests.push(request);
+        state.allRequests.push(request);
 
-        // Crear fila de tabla
         const row = document.createElement('tr');
         
-        // Añadir separador de rondas cada 10 solicitudes
+        // agregar separadores visuales entre rondas
         if (i === 10 || i === 20) {
             const dividerRow = document.createElement('tr');
             dividerRow.className = 'bg-red-100 border-t-2 border-red-300';
@@ -104,6 +106,7 @@ function generateRequests() {
             requestsBody.appendChild(dividerRow);
         }
 
+        // colores diferentes para cada ronda
         row.className = i < 10 ? 'bg-blue-50' : i < 20 ? 'bg-green-50' : 'bg-yellow-50';
         row.innerHTML = `
             <td class="px-4 py-2 text-sm font-medium text-gray-900">${request.id}</td>
@@ -114,69 +117,77 @@ function generateRequests() {
         requestsBody.appendChild(row);
     }
 
-    addToLog('>> Nuevas solicitudes generadas (30 solicitudes - 3 rondas)');
+    // inicializar con solo las primeras 10 solicitudes
+    state.pendingRequests = state.allRequests.slice(0, 10);
+
+    addToLog('>> nuevas solicitudes generadas (30 solicitudes - 3 rondas)');
     
+    // configurar scroll para la tabla de solicitudes
     const tableContainer = document.querySelector('.overflow-y-auto');
     if (tableContainer) {
         tableContainer.style.maxHeight = '400px';
         tableContainer.style.overflowY = 'auto';
-        
-        // Estilos personalizados para el scrollbar
         tableContainer.style.scrollbarWidth = 'thin';
         tableContainer.style.scrollbarColor = '#cbd5e0 #f7fafc';
     }
 }
 
-// Limpiar historial
+// limpia el historial de simulaciones
 function clearHistory() {
     state.history = [];
     document.getElementById('historyBody').innerHTML = '';
-    addToLog('>> Historial de simulaciones limpiado');
+    addToLog('>> historial de simulaciones limpiado');
 }
 
-// Iniciar simulación
+// inicia la simulacion con el algoritmo seleccionado
 function startSimulation() {
     if (state.simulation.isRunning) return;
     
+    // reiniciar estado de simulacion
     state.simulation.isRunning = true;
     state.simulation.isPaused = false;
     state.simulation.currentRequestIndex = 0;
     state.simulation.totalTracks = 0;
     state.simulation.directionChanges = 0;
     state.simulation.currentRound = 1;
+    state.simulation.currentCylinder = 20;
+    state.simulation.direction = 0; // direccion neutral inicial
     
-    // Actualizar UI
+    // comenzar solo con ronda 1
+    state.pendingRequests = state.allRequests.slice(0, 10);
+    
+    // actualizar estado de botones
     document.getElementById('startSimulation').disabled = true;
     document.getElementById('pauseSimulation').disabled = false;
     document.getElementById('resetSimulation').disabled = false;
     
-    // Limpiar resultados anteriores
+    // limpiar resultados anteriores
     document.getElementById('resultsBody').innerHTML = '';
     state.results = [];
     
-    addToLog(`>> Iniciando simulación con algoritmo ${state.currentAlgorithm}`);
-    addToLog(`>> Ronda 1 iniciada (solicitudes 1-10)`);
+    addToLog(`>> iniciando simulacion con algoritmo ${state.currentAlgorithm}`);
+    addToLog(`>> ronda 1 iniciada (solicitudes 1-10)`);
     
-    // Iniciar procesamiento
+    // comenzar el procesamiento
     processNextRequest();
 }
 
-// Pausar/Reanudar simulación
+// pausa o reanuda la simulacion
 function togglePause() {
     state.simulation.isPaused = !state.simulation.isPaused;
     const pauseBtn = document.getElementById('pauseSimulation');
     
     if (state.simulation.isPaused) {
-        pauseBtn.innerHTML = '<i class="fas fa-play mr-2"></i>Reanudar Simulación';
-        addToLog('>> Simulación pausada');
+        pauseBtn.innerHTML = '<i class="fas fa-play mr-2"></i>reanudar simulacion';
+        addToLog('>> simulacion pausada');
     } else {
-        pauseBtn.innerHTML = '<i class="fas fa-pause mr-2"></i>Pausar Simulación';
-        addToLog('>> Simulación reanudada');
+        pauseBtn.innerHTML = '<i class="fas fa-pause mr-2"></i>pausar simulacion';
+        addToLog('>> simulacion reanudada');
         processNextRequest();
     }
 }
 
-// Reiniciar simulación
+// reinicia la simulacion a su estado inicial
 function resetSimulation() {
     state.simulation.isRunning = false;
     state.simulation.isPaused = false;
@@ -187,101 +198,255 @@ function resetSimulation() {
     state.simulation.directionChanges = 0;
     state.simulation.currentRound = 0;
     
-    // Actualizar UI
+    // restaurar botones a estado inicial
     document.getElementById('startSimulation').disabled = false;
     document.getElementById('pauseSimulation').disabled = true;
-    document.getElementById('pauseSimulation').innerHTML = '<i class="fas fa-pause mr-2"></i>Pausar Simulación';
+    document.getElementById('pauseSimulation').innerHTML = '<i class="fas fa-pause mr-2"></i>pausar simulacion';
     
+    // actualizar interfaz
     updateMetrics();
     updateProgress();
     updateVisualization();
     
-    addToLog('>> Simulación reiniciada');
+    addToLog('>> simulacion reiniciada');
 }
 
-// Procesar siguiente solicitud
+// ============ implementacion de algoritmos de planificacion ============
+
+// fcfs - first come first served
+function executeFCFS(requests, currentCylinder) {
+    return requests; // orden original de llegada
+}
+
+// sstf - shortest seek time first
+function executeSSTF(requests, currentCylinder) {
+    // ordenar por distancia al cilindro actual
+    return requests.sort((a, b) => 
+        Math.abs(a.cilindro - currentCylinder) - Math.abs(b.cilindro - currentCylinder)
+    );
+}
+
+// scan - elevator algorithm
+function executeSCAN(requests, currentCylinder, direction) {
+    // dividir solicitudes en izquierda y derecha
+    const left = requests.filter(r => r.cilindro <= currentCylinder)
+                        .sort((a, b) => b.cilindro - a.cilindro);
+    const right = requests.filter(r => r.cilindro > currentCylinder)
+                         .sort((a, b) => a.cilindro - b.cilindro);
+    
+    // retornar segun direccion actual
+    return direction === 1 ? [...right, ...left] : [...left, ...right];
+}
+
+// c-scan - circular scan
+function executeCSCAN(requests, currentCylinder) {
+    const sorted = [...requests].sort((a, b) => a.cilindro - b.cilindro);
+    const right = sorted.filter(r => r.cilindro >= currentCylinder);
+    const left = sorted.filter(r => r.cilindro < currentCylinder);
+    
+    // siempre en una direccion (circular)
+    return [...right, ...left];
+}
+
+// scan de n pasos (n=5)
+function executeNSTEP(requests, currentCylinder, direction) {
+    const groupSize = 5;
+    const groups = [];
+    
+    // dividir en grupos de tamaño n
+    for (let i = 0; i < requests.length; i += groupSize) {
+        groups.push(requests.slice(i, i + groupSize));
+    }
+    
+    // aplicar scan a cada grupo
+    const processedGroups = groups.map(group => 
+        executeSCAN(group, currentCylinder, direction)
+    );
+    
+    // concatenar resultados
+    return processedGroups.flat();
+}
+
+// esquema eschenbach - optimizacion avanzada
+function executeEschenbach(requests, currentCylinder, direction) {
+    // priorizar solicitudes en direccion actual
+    const inDirection = requests.filter(r => 
+        direction === 1 ? r.cilindro >= currentCylinder : r.cilindro <= currentCylinder
+    );
+    
+    const oppositeDirection = requests.filter(r => 
+        direction === 1 ? r.cilindro < currentCylinder : r.cilindro > currentCylinder
+    );
+    
+    // ordenar cada grupo por distancia
+    inDirection.sort((a, b) => 
+        Math.abs(a.cilindro - currentCylinder) - Math.abs(b.cilindro - currentCylinder)
+    );
+    
+    oppositeDirection.sort((a, b) => 
+        Math.abs(a.cilindro - currentCylinder) - Math.abs(b.cilindro - currentCylinder)
+    );
+    
+    return [...inDirection, ...oppositeDirection];
+}
+
+// selecciona la siguiente solicitud segun el algoritmo
+function getNextRequest() {
+    if (state.pendingRequests.length === 0) return null;
+
+    let sortedRequests = [];
+    
+    // aplicar algoritmo segun seleccion
+    switch (state.currentAlgorithm) {
+        case 'FCFS':
+            sortedRequests = executeFCFS([...state.pendingRequests], state.simulation.currentCylinder);
+            break;
+        case 'SSTF':
+            sortedRequests = executeSSTF([...state.pendingRequests], state.simulation.currentCylinder);
+            break;
+        case 'SCAN':
+            sortedRequests = executeSCAN([...state.pendingRequests], state.simulation.currentCylinder, state.simulation.direction);
+            break;
+        case 'CSCAN':
+            sortedRequests = executeCSCAN([...state.pendingRequests], state.simulation.currentCylinder);
+            break;
+        case 'NSTEP':
+            sortedRequests = executeNSTEP([...state.pendingRequests], state.simulation.currentCylinder, state.simulation.direction);
+            break;
+        case 'ESCHENBACH':
+            sortedRequests = executeEschenbach([...state.pendingRequests], state.simulation.currentCylinder, state.simulation.direction);
+            break;
+        default:
+            sortedRequests = [...state.pendingRequests];
+    }
+    
+    return sortedRequests.length > 0 ? sortedRequests[0] : null;
+}
+
+// procesa la siguiente solicitud en la simulacion
 function processNextRequest() {
     if (!state.simulation.isRunning || state.simulation.isPaused) return;
-    
-    if (state.simulation.currentRequestIndex >= state.requests.length) {
+
+    // verificar transiciones entre rondas
+    checkRoundTransition();
+
+    // finalizar si no hay mas solicitudes
+    if (state.pendingRequests.length === 0) {
+        state.simulation.currentRequestIndex = 30;
+        state.simulation.currentRound = 3;
+        updateMetrics();
+        updateProgress();
         finishSimulation();
         return;
     }
+
+    // obtener siguiente solicitud segun algoritmo
+    const nextRequest = getNextRequest();
     
-    // Verificar cambio de ronda
-    checkRoundTransition();
+    if (!nextRequest) {
+        finishSimulation();
+        return;
+    }
+
+    const targetCylinder = nextRequest.cilindro;
     
-    const currentRequest = state.requests[state.simulation.currentRequestIndex];
-    const targetCylinder = currentRequest.cilindro;
-    
-    // Calcular distancia recorrida
+    // calcular distancia recorrida
     const distance = Math.abs(targetCylinder - state.simulation.currentCylinder);
     state.simulation.totalTracks += distance;
     
-    // Verificar cambio de dirección
+    // deteccion de cambios de direccion
     let directionChanged = false;
-    if ((targetCylinder > state.simulation.currentCylinder && state.simulation.direction === -1) ||
-        (targetCylinder < state.simulation.currentCylinder && state.simulation.direction === 1)) {
+    const previousDirection = state.simulation.direction;
+
+    // determinar nueva direccion basada en movimiento
+    if (targetCylinder > state.simulation.currentCylinder) {
+        state.simulation.direction = 1;
+    } else if (targetCylinder < state.simulation.currentCylinder) {
+        state.simulation.direction = -1;
+    }
+
+    // verificar si hubo cambio real de direccion
+    if (state.simulation.direction !== previousDirection && previousDirection !== 0) {
         state.simulation.directionChanges++;
-        state.simulation.direction *= -1;
         directionChanged = true;
+        addToLog(`>>> cambio de direccion detectado: ${previousDirection === 1 ? '→ aumentando' : '← disminuyendo'} a ${state.simulation.direction === 1 ? '→ aumentando' : '← disminuyendo'}`);
     }
     
-    // Actualizar cilindro actual
+    // actualizar posicion del cabezal
     state.simulation.currentCylinder = targetCylinder;
     
-    // Registrar resultado
+    // registrar resultado de esta solicitud
     const result = {
-        requestId: currentRequest.id,
+        requestId: nextRequest.id,
         tracks: distance,
         directionChanged: directionChanged
     };
     state.results.push(result);
     
-    // Actualizar UI
+    // remover solicitud procesada
+    const requestIndex = state.pendingRequests.findIndex(r => r.id === nextRequest.id);
+    if (requestIndex > -1) {
+        state.pendingRequests.splice(requestIndex, 1);
+    }
+    
+    // actualizar interfaz de usuario
     updateResultsTable(result);
     updateMetrics();
     updateProgress();
     updateVisualization();
     
-    // Log del evento
-    addToLog(`>> Atendiendo solicitud ${currentRequest.id}: Cilindro ${targetCylinder} (${distance} pistas)`);
-    if (directionChanged) {
-        addToLog(`>>> Cambio de dirección: ${state.simulation.direction === 1 ? '→ AUMENTANDO' : '← DISMINUYENDO'}`);
-    }
+    // registrar en log
+    addToLog(`>> [${state.currentAlgorithm}] atendiendo solicitud ${nextRequest.id}: cilindro ${targetCylinder} (${distance} pistas)`);
     
     state.simulation.currentRequestIndex++;
     
-    // Programar siguiente solicitud según velocidad
-    const speedDelay = 1000 - ((state.simulation.speed - 1) * 100); // 100ms a 1000ms
+    // programar siguiente solicitud con delay segun velocidad
+    const speedDelay = 1500 - ((state.simulation.speed - 1) * 300);
     setTimeout(processNextRequest, speedDelay);
 }
 
-// Verificar transición entre rondas
+// controla las transiciones entre rondas de solicitudes
 function checkRoundTransition() {
-    const newRound = Math.floor(state.simulation.currentRequestIndex / 10) + 1;
-    
-    if (newRound !== state.simulation.currentRound) {
-        state.simulation.currentRound = newRound;
-        document.getElementById('currentRound').textContent = state.simulation.currentRound;
-        
-        if (state.simulation.currentRound === 2) {
-            addToLog('>> ¡NUEVAS SOLICITUDES! Ronda 2 iniciada (solicitudes 11-20)');
-        } else if (state.simulation.currentRound === 3) {
-            addToLog('>> ¡NUEVAS SOLICITUDES! Ronda 3 iniciada (solicitudes 21-30)');
-        }
+    const totalAttended = state.simulation.currentRequestIndex;
+
+    // ronda 2: despues de 5 atenciones
+    if (totalAttended === 5 && state.simulation.currentRound === 1) {
+        const round2Requests = state.allRequests.slice(10, 20);
+        state.pendingRequests = state.pendingRequests.concat(round2Requests);
+        state.simulation.currentRound = 2;
+        document.getElementById('currentRound').textContent = '2';
+        addToLog('>> ¡nuevas solicitudes! ronda 2 iniciada (solicitudes 11-20)');
+        addToLog(`>> ahora hay ${state.pendingRequests.length} solicitudes pendientes`);
+    }
+
+    // ronda 3: despues de 15 atenciones totales
+    if (totalAttended === 15 && state.simulation.currentRound === 2) {
+        const round3Requests = state.allRequests.slice(20, 30);
+        state.pendingRequests = state.pendingRequests.concat(round3Requests);
+        state.simulation.currentRound = 3;
+        document.getElementById('currentRound').textContent = '3';
+        addToLog('>> ¡nuevas solicitudes! ronda 3 iniciada (solicitudes 21-30)');
+        addToLog(`>> ahora hay ${state.pendingRequests.length} solicitudes pendientes`);
     }
 }
 
-// Finalizar simulación
+// finaliza la simulacion y guarda resultados
 function finishSimulation() {
-    state.simulation.isRunning = false;
+    // forzar valores finales
+    state.simulation.currentRequestIndex = 30;
+    state.simulation.currentRound = 3;
     
-    // Actualizar UI
+    // actualizar interfaz final
+    updateMetrics();
+    updateProgress();
+
+    state.simulation.isRunning = false;
+  
+    // restaurar controles
     document.getElementById('startSimulation').disabled = false;
     document.getElementById('pauseSimulation').disabled = true;
     
-    // Agregar al historial
+    // guardar en historial
     const historyEntry = {
         algorithm: state.currentAlgorithm,
         totalTracks: state.simulation.totalTracks,
@@ -291,30 +456,33 @@ function finishSimulation() {
     state.history.push(historyEntry);
     updateHistoryTable();
     
-    addToLog('>> Simulación completada');
-    addToLog(`>> Resumen: ${state.simulation.totalTracks} pistas recorridas, ${state.simulation.directionChanges} cambios de dirección`);
+    addToLog('>> simulacion completada');
+    addToLog(`>> resumen: ${state.simulation.totalTracks} pistas recorridas, ${state.simulation.directionChanges} cambios de direccion`);
 }
 
-// Actualizar tabla de resultados
+// ============ funciones de actualizacion de interfaz ============
+
+// actualiza la tabla de resultados de la simulacion actual
 function updateResultsTable(result) {
     const resultsBody = document.getElementById('resultsBody');
     const row = document.createElement('tr');
     
+    // resaltar filas con cambio de direccion
     row.className = result.directionChanged ? 'bg-yellow-50' : '';
     row.innerHTML = `
         <td class="px-4 py-2 text-sm font-medium text-gray-900">${result.requestId}</td>
         <td class="px-4 py-2 text-sm text-gray-700">${result.tracks}</td>
         <td class="px-4 py-2 text-sm text-gray-700">
             ${result.directionChanged ? 
-                '<span class="text-red-600 font-bold">SÍ</span>' : 
-                '<span class="text-green-600">No</span>'}
+                '<span class="text-red-600 font-bold">SI</span>' : 
+                '<span class="text-green-600">no</span>'}
         </td>
     `;
     
     resultsBody.appendChild(row);
 }
 
-// Actualizar tabla de historial
+// actualiza la tabla de historial de simulaciones
 function updateHistoryTable() {
     const historyBody = document.getElementById('historyBody');
     historyBody.innerHTML = '';
@@ -330,37 +498,43 @@ function updateHistoryTable() {
     });
 }
 
-// Actualizar métricas en tiempo real
+// actualiza las metricas en tiempo real
 function updateMetrics() {
     document.getElementById('totalTracks').textContent = state.simulation.totalTracks;
     document.getElementById('directionChanges').textContent = state.simulation.directionChanges;
-    document.getElementById('requestsProcessed').textContent = 
-        `${state.simulation.currentRequestIndex}/30`;
+    
+    // asegurar que se muestre 30/30 al finalizar
+    const processedCount = state.simulation.currentRequestIndex >= 30 ? 30 : state.simulation.currentRequestIndex;
+    document.getElementById('requestsProcessed').textContent = `${processedCount}/30`;
+    
     document.getElementById('currentCylinder').textContent = state.simulation.currentCylinder;
     document.getElementById('currentRound').textContent = state.simulation.currentRound || '-';
 }
 
-// Actualizar barra de progreso
+// actualiza la barra de progreso
 function updateProgress() {
-    const progress = (state.simulation.currentRequestIndex / 30) * 100;
+    const totalRequests = 30;
+    const progress = (state.simulation.currentRequestIndex / totalRequests) * 100;
     const progressFill = document.getElementById('progressFill');
     const progressPercentage = document.getElementById('progressPercentage');
     
-    progressFill.style.width = `${progress}%`;
-    progressPercentage.textContent = `${Math.round(progress)}%`;
+    // asegurar progreso exacto hasta 100%
+    const exactProgress = Math.min(100, (state.simulation.currentRequestIndex / totalRequests) * 100);
+    
+    progressFill.style.width = `${exactProgress}%`;
+    progressPercentage.textContent = `${Math.round(exactProgress)}%`;
 }
 
-// Actualizar visualización del disco
+// actualiza la visualizacion grafica del disco
 function updateVisualization() {
     const visualContent = document.getElementById('visualContent');
     
-    // Crear representación visual simple de los cilindros
     let visualization = `
         <div class="mb-4">
             <div class="flex justify-between items-center mb-2">
-                <span class="text-blue-300">Cilindro 0</span>
-                <span class="text-green-300">Cabezal: Cilindro ${state.simulation.currentCylinder}</span>
-                <span class="text-blue-300">Cilindro 39</span>
+                <span class="text-blue-300">cilindro 0</span>
+                <span class="text-green-300">cabezal: cilindro ${state.simulation.currentCylinder}</span>
+                <span class="text-blue-300">cilindro 39</span>
             </div>
             <div class="bg-gray-800 h-4 rounded-full relative">
                 <div class="absolute top-0 left-0 h-4 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full" 
@@ -370,24 +544,24 @@ function updateVisualization() {
             </div>
         </div>
         <div class="grid grid-cols-4 gap-2 text-xs">
-            <div class="text-center p-2 bg-blue-500 rounded">Algoritmo: ${state.currentAlgorithm}</div>
-            <div class="text-center p-2 bg-green-500 rounded">Dirección: ${state.simulation.direction === 1 ? '→' : '←'}</div>
-            <div class="text-center p-2 bg-purple-500 rounded">Ronda: ${state.simulation.currentRound}</div>
-            <div class="text-center p-2 bg-red-500 rounded">Activas: ${30 - state.simulation.currentRequestIndex}</div>
+            <div class="text-center p-2 bg-blue-500 rounded">algoritmo: ${state.currentAlgorithm}</div>
+            <div class="text-center p-2 bg-green-500 rounded">direccion: ${state.simulation.direction === 1 ? '→' : '←'}</div>
+            <div class="text-center p-2 bg-purple-500 rounded">ronda: ${state.simulation.currentRound}</div>
+            <div class="text-center p-2 bg-red-500 rounded">pendientes: ${state.pendingRequests.length}</div>
         </div>
     `;
     
     visualContent.innerHTML = visualization;
 }
 
-// Actualizar display de velocidad
+// actualiza la etiqueta de velocidad
 function updateSpeedDisplay() {
     const speedValue = document.getElementById('speedValue');
-    const speeds = ['Muy Lento', 'Lento', 'Normal', 'Rápido', 'Muy Rápido'];
-    speedValue.textContent = speeds[state.simulation.speed - 1] || 'Normal';
+    const speeds = ['muy lento', 'lento', 'normal', 'rapido', 'muy rapido'];
+    speedValue.textContent = speeds[state.simulation.speed - 1];
 }
 
-// Agregar entrada al log
+// agrega una entrada al log de eventos
 function addToLog(message) {
     const logContainer = document.getElementById('eventLog');
     const logEntry = document.createElement('div');
@@ -397,27 +571,7 @@ function addToLog(message) {
     logContainer.scrollTop = logContainer.scrollHeight;
 }
 
-// Algoritmos de planificación (para futura implementación completa)
-function executeFCFS(requests, currentCylinder) {
-    // Implementación básica - ya estamos usando FCFS por defecto
-    return requests;
-}
-
-function executeSSTF(requests, currentCylinder) {
-    return requests.sort((a, b) => 
-        Math.abs(a.cilindro - currentCylinder) - Math.abs(b.cilindro - currentCylinder)
-    );
-}
-
-function executeSCAN(requests, currentCylinder, direction) {
-    // Implementación simplificada de SCAN
-    const left = requests.filter(r => r.cilindro <= currentCylinder).sort((a, b) => b.cilindro - a.cilindro);
-    const right = requests.filter(r => r.cilindro > currentCylinder).sort((a, b) => a.cilindro - b.cilindro);
-    
-    return direction === 1 ? [...right, ...left] : [...left, ...right];
-}
-
-// Exportar funciones para uso global (si es necesario)
+// interfaz global para debugging
 window.simulator = {
     state,
     generateRequests,
